@@ -1,0 +1,209 @@
+<html>
+    <header>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+        integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+        crossorigin=""/>
+        <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+        integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+        crossorigin=""></script>
+        <!-- <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script> -->
+         <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/smoothness/jquery-ui.css">
+          <script src="//code.jquery.com/jquery-1.12.4.js"></script>
+          <script src="//code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    </header>
+    <body>
+        <h2> Search for Building Permits in Calgary</h2>
+        <div style="height: 20px;"></div>
+        <label>Issued Dates:</label>
+        
+        <input id="d" style="z-index: 1;">
+        <button type="button" id="get">Search</button>
+        <div style="height: 100px;"></div>
+        
+        <div id="map" style="height: 700px; z-index: 0;"></div>
+        <script type="text/javascript">
+            var map = L.map('map').setView([51.03, -114], 10);
+            var layerGroup = new L.LayerGroup();
+            var layerLand = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                 attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                 maxZoom: 18,
+                 id: 'mapbox/streets-v11',
+                 tileSize: 512,
+                 zoomOffset: -1,
+                 accessToken: 'pk.eyJ1IjoieW9uZ2lseXUxIiwiYSI6ImNrenlrems0dTAxYXgzanRmNDRsaXRzNjkifQ.vc6Qs6Inz3_uP3mJVi90Tg'
+             }).addTo(map),
+
+
+            incidents= L.tileLayer('https://api.mapbox.com/styles/v1/yongilyu1/ckzyu24fr00fh15qk8ea3ifnk/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+            maxZoom: 18,
+            id: 'mapbox/streets-v11',
+            tileSize: 512,
+            zoomOffset: -1,
+            accessToken: 'pk.eyJ1IjoieW9uZ2lseXUxIiwiYSI6ImNrenlrems0dTAxYXgzanRmNDRsaXRzNjkifQ.vc6Qs6Inz3_uP3mJVi90Tg'
+            }).addTo(map);
+
+            var layerGeo = null
+            var baseMaps = {
+            "Calgary": layerLand,
+            };
+
+            var overlayMaps = {
+            "Traffic incidents": incidents
+            };
+
+            layerGroup.addTo(map);
+            L.control.layers(baseMaps, overlayMaps).addTo(map);
+            layerGroup.addLayer(layerLand);
+            layerGroup.addLayer(incidents);
+           
+            // layerGroup.removeLayer(layerPostalcodes);
+             
+            
+                function onEachFeature(feature, layer) {
+                  // does this feature have a property named popupContent?
+                  if (feature.properties && feature.properties) {
+                      let descr = ''
+                      // issueddate, workclassgroup,
+                      // contractor name, community name and original address.  
+                      feature.properties.forEach((propertyy)=>{
+                        descr += `<p>Issued Date: ${propertyy.issueddate} <br>Work class group: ${propertyy.workclassgroup}<br>Contractor name:${propertyy.contractorname}<br>Community name: ${propertyy.communityname}<br>Original address: ${propertyy.originaladdress}</p>`
+
+                      });
+                      if (feature.properties > 1){
+                            console.log("DDDDDDDDDDDDDDDDDDDDDDDD")
+                            // console.log(future)
+                      }
+                      
+                      layer.bindPopup(descr);
+                  }
+                }
+
+                      
+               function getData() {
+                 const words = document.querySelector('#d').value.split('_');
+                 const dateFrom = words[0].trim()
+                 const dateTo = words[1].trim()
+                 // console.log(dateFrom)
+                 // console.log(dateTo)
+                 //const dateTo = document.querySelector('#dateTo').value;
+                 const requestURL = `https://data.calgary.ca/resource/c2es-76ed.geojson?$where=issueddate > '${dateFrom}' and issueddate < '${dateTo}'`;
+                 const xhr = new XMLHttpRequest();
+                 xhr.open('GET', requestURL);
+                 xhr.onload = function () {
+                   if (xhr.status !== 200) {
+                     return;
+                   }
+                   const response = JSON.parse(xhr.response);
+                   const features = response['features']
+
+                   // -------------------------------------
+                    let geojsonFeature = []
+                    let flag = false
+
+                    features.forEach((element) => {
+                         // console.log({ element });
+                        if (element['geometry']){
+                          // console.log({ element });
+                          if (geojsonFeature.length === 0){
+                            // console.log("Empty")
+                            element['properties'] = [element['properties']]
+                            geojsonFeature.push(element)
+                          }
+                          else {
+                            flag = false
+                            for (let index = 0; index < geojsonFeature.length; ++index) {
+                                // console.log("iter")
+                                if ((geojsonFeature[index]['geometry']['coordinates'][0] === element['geometry']['coordinates'][0]) && (geojsonFeature[index]['geometry']['coordinates'][1] === element['geometry']['coordinates'][1]))   {
+                                    geojsonFeature[index]['properties'].push(element['properties'])
+                                    flag = true
+                                }
+                            
+                            }
+                            if (flag === false){
+                                element['properties'] = [element['properties']]
+                                geojsonFeature.push(element)
+                                
+
+                            }
+                          }
+                      }
+
+                    });
+
+                    // console.log(geojsonFeature)
+                   // ---------------------------------------
+
+                   // console.log(geojsonFeature)
+                   if (layerGeo){
+                        layerGroup.removeLayer(layerGeo); 
+                        console.log("Removed")
+                   }
+                   layerGeo = L.geoJSON(geojsonFeature, {
+                       onEachFeature: onEachFeature
+                   }).addTo(map);
+                   layerGroup.addLayer(layerGeo);
+                       
+
+                 }
+                 xhr.send();
+               }
+               // Press search button
+               document.querySelector('#get').addEventListener('click', () => {
+                 getData();
+               });
+
+               (function ($) {
+
+                $.fn.daterange = function () {
+                    // options
+                    var opts = $.extend({
+                        "dateFormat": "yy-mm-dd",
+                        "changeMonth": false,
+                        "changeYear": false,
+                        "numberOfMonths": 2,
+                        "rangeSeparator": "_"
+                    }, arguments[0] || {}, {
+                        // Datepicker
+                        // Closing
+                        "onClose": function (dateText, inst) {
+                            if ($.isFunction(opts.callback)) {
+                                opts.callback.apply(this, arguments);
+                            }
+                        },
+                        // Data selection
+                        "onSelect": function (dateText, inst) {
+                            var textStart;
+                            if (!inst.rangeStart) {
+                                inst.inline = true;
+                                inst.rangeStart = dateText;
+                            } else {
+                                inst.inline = false;
+                                textStart = inst.rangeStart;
+                                if (textStart !== dateText) {
+                                    $(this).val(textStart + " " + opts.rangeSeparator + " " + dateText);
+                                    inst.rangeStart = null;
+                                }
+                            }
+                        }
+                    });
+
+                    return this.each(function () {
+                        var input = $(this);
+                        if (input.is("input")) {
+                            input.datepicker(opts);
+                        }
+                    });
+                };
+
+            }(jQuery));
+
+            $("#d").daterange({
+                callback: function (range) {
+                  $(this);  
+                }
+            });
+        
+            </script>
+   </body>
+</html>
